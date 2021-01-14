@@ -1,100 +1,64 @@
-fs = require('fs');
 // songs
-imagine = ['c', 'cmaj7', 'f', 'am', 'dm', 'g', 'e7'];
-somewhere_over_the_rainbow = ['c', 'em', 'f', 'g', 'am'];
-tooManyCooks = ['c', 'g', 'f'];
-iWillFollowYouIntoTheDark = ['f', 'dm', 'bb', 'c', 'a', 'bbm'];
-babyOneMoreTime = ['cm', 'g', 'bb', 'eb', 'fm', 'ab'];
-creep = ['g', 'gsus4', 'b', 'bsus4', 'c', 'cmsus4', 'cm6'];
-army = ['ab', 'ebm7', 'dbadd9', 'fm7', 'bbm', 'abmaj7', 'ebm'];
-paperBag = ['bm7', 'e', 'c', 'g', 'b7', 'f', 'em', 'a', 'cmaj7',
-    'em7', 'a7', 'f7', 'b'
-];
-toxic = ['cm', 'eb', 'g', 'cdim', 'eb7', 'd7', 'db7', 'ab', 'gmaj7',
-    'g7'
-];
-bulletproof = ['d#m', 'g#', 'b', 'f#', 'g#m', 'c#'];
-song_11 = [];
-var songs = [];
-var labels = [];
-var allChords = [];
-var labelCounts = [];
-var labelProbabilities = [];
-var chordCountsInLabels = {};
-var probabilityOfChordsInLabels = {};
 
-function train(chords, label) {
-    songs.push([label, chords]);
-    labels.push(label);
-    for (var i = 0; i < chords.length; i++) {
-        if (!allChords.includes(chords[i])) {
-            allChords.push(chords[i]);
-        }
-    }
-    if (!!(Object.keys(labelCounts).includes(label))) {
-        labelCounts[label] = labelCounts[label] + 1;
+// step.1:判斷歌曲有幾個和弦、歌曲難易度
+function train(chords, label, labels_array, songs_array, labelCounts_dict) {
+    songs_array.push([label, chords]);
+    labels_array.push(label);
+
+    if (Object.keys(labelCounts_dict).includes(label)) {
+        labelCounts_dict[label] = labelCounts_dict[label] + 1;
     } else {
-        labelCounts[label] = 1;
+        labelCounts_dict[label] = 1;
     }
+    return [labels_array, songs_array, labelCounts_dict]
 };
 
-function getNumberOfSongs() {
-    return songs.length;
-};
 
-function setLabelProbabilities() {
-    Object.keys(labelCounts).forEach(function(label) {
-        var numberOfSongs = getNumberOfSongs();
-        labelProbabilities[label] = labelCounts[label] / numberOfSongs;
+// step.2:機率計算
+function setLabelProbabilities(labelCounts_dict, labelProbabilities_dict, songs_array) {
+    Object.keys(labelCounts_dict).forEach(function(label) {
+        let numberOfSongs = songs_array.length;
+        labelProbabilities_dict[label] = labelCounts_dict[label] / numberOfSongs;
     });
+    return labelProbabilities_dict;
 };
 
-function setChordCountsInLabels() {
-    songs.forEach(function(i) {
-        if (chordCountsInLabels[i[0]] === undefined) {
-            chordCountsInLabels[i[0]] = {};
+
+function setProbabilityOfChordsInLabels(songs_array, chordCountsInLabels_dict) {
+    // 計算和弦出現過幾次
+    songs_array.forEach(function(i) {
+        if (chordCountsInLabels_dict[i[0]] === undefined) {
+            chordCountsInLabels_dict[i[0]] = {};
         }
         i[1].forEach(function(j) {
-            if (chordCountsInLabels[i[0]][j] > 0) {
-                chordCountsInLabels[i[0]][j] =
-                    chordCountsInLabels[i[0]][j] + 1;
+            if (chordCountsInLabels_dict[i[0]][j] > 0) {
+                chordCountsInLabels_dict[i[0]][j] =
+                    chordCountsInLabels_dict[i[0]][j] + 1;
             } else {
-                chordCountsInLabels[i[0]][j] = 1;
+                chordCountsInLabels_dict[i[0]][j] = 1;
             }
         });
     });
-}
 
-function setProbabilityOfChordsInLabels() {
-    probabilityOfChordsInLabels = chordCountsInLabelss;
-    Object.keys(probabilityOfChordsInLabels).forEach(function(i) {
-        Object.keys(probabilityOfChordsInLabels[i]).forEach(function(j) {
-            probabilityOfChordsInLabels[i][j] = probabilityOfChordsInLabels[i][j] * 1.0 / songs.length;
+    // 統計標籤中和弦出現的機率
+    Object.keys(chordCountsInLabels_dict).forEach(function(i) {
+        Object.keys(chordCountsInLabels_dict[i]).forEach(function(j) {
+            chordCountsInLabels_dict[i][j] = chordCountsInLabels_dict[i][j] * 1.0 / songs_array.length;
         });
     });
+    return chordCountsInLabels_dict;
 }
-train(imagine, 'easy');
-train(somewhere_over_the_rainbow, 'easy');
-train(tooManyCooks, 'easy');
-train(iWillFollowYouIntoTheDark, 'medium');
-train(babyOneMoreTime, 'medium');
-train(creep, 'medium');
-train(paperBag, 'hard');
-train(toxic, 'hard');
-train(bulletproof, 'hard');
-setLabelProbabilities();
-setChordCountsInLabels();
-setProbabilityOfChordsInLabels();
 
-function classify(chords) {
-    var ttal = labelProbabilities;
-    console.log(ttal);
-    var classified = {};
+
+// step.3:判斷歌曲難易度
+function classify(chords, labelProbabilities_dict, chordCountsInLabels_dict) {
+    let ttal = labelProbabilities_dict;
+    let classified = {};
     Object.keys(ttal).forEach(function(obj) {
-        var first = labelProbabilities[obj] + 1.01;
+        let first = labelProbabilities_dict[obj] + 1.01;
         chords.forEach(function(chord) {
-            var probabilityOfChordInLabel =
-                probabilityOfChordsInLabels[obj][chord];
+            let probabilityOfChordInLabel =
+                chordCountsInLabels_dict[obj][chord];
             if (probabilityOfChordInLabel === undefined) {
                 first + 1.01;
             } else {
@@ -103,9 +67,13 @@ function classify(chords) {
         });
         classified[obj] = first;
     });
-    console.log(classified);
+    return classified;
 };
-classify(['d', 'g', 'e', 'dm']);
-classify(['f#m7', 'a', 'dadd9', 'dmaj7', 'bm', 'bm7', 'd', 'f#m']);
 
-module.exports = classify;
+module.exports = {
+    classify: classify,
+    train: train,
+    setLabelProbabilities: setLabelProbabilities,
+    setProbabilityOfChordsInLabels: setProbabilityOfChordsInLabels
+
+};
